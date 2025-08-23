@@ -1,0 +1,63 @@
+.
+├── README.md
+├── chatgpt
+│   ├── chatgpt.zip
+│   ├── chats_to_jsonl.py
+│   ├── clean_chatgpt_to_sft.py
+│   └── sft.jsonl
+├── command_line_train.sh
+├── epub
+│   ├── books
+│   │   ├── CW1.epub
+│   │   ├── CW2.epub
+│   │   ├── CW3.epub
+│   │   ├── Ellay.epub
+│   │   ├── KillingEllay.epub
+│   │   ├── LAW1.epub
+│   │   ├── LAW2.epub
+│   │   ├── LAW3.epub
+│   │   └── TSW.epub
+│   ├── epub.messages.jsonl
+│   ├── epub.sft.jsonl
+│   ├── epub.stats.json
+│   └── epub_to_sft.py
+├── mail
+│   ├── Sent
+│   ├── mail_to_sft.py
+│   ├── sent.messages.jsonl
+│   ├── sent.sft.jsonl
+│   └── sent.stats.json
+├── memories
+│   ├── README.md
+│   ├── data
+│   │   ├── age6.txt
+│   │   └── age9.txt
+│   ├── memories_batch_pipeline.py
+│   ├── oldsrc
+│   │   ├── chunks_and_instructions.py
+│   │   ├── memories_all_in_one.py
+│   │   ├── memory_parse.py
+│   │   └── parse_memories.py
+│   └── output
+│       ├── chunks
+│       │   ├── age6.jsonl
+│       │   └── age9.jsonl
+│       ├── manifest.json
+│       ├── sentences
+│       │   ├── age6.jsonl
+│       │   └── age9.jsonl
+│       └── sft
+│           ├── age6.jsonl
+│           ├── age9.jsonl
+│           └── memories.sft.jsonl
+├── out
+│   ├── chatgpt.sft.jsonl
+│   ├── epub.sft.jsonl
+│   ├── memories.sft.jsonl
+│   └── sent.sft.jsonl
+├── requirements.txt
+├── sentinel_guardrails.txt
+├── sft_train.py
+└── training_tree.txt
+
+13 directories, 48 files
