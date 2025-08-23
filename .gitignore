@@ -3,3 +3,10 @@ mail
 memories
 out
 chatgpt
+
+# training outputs
+ckpts/
+*.pt
+*.bin
+*.safetensors
+
