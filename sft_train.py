@@ -1,192 +1,225 @@
 #!/usr/bin/env python3
-"""
-LoRA SFT for Toddric on JSONL (system/messages/tags).
-Version-compatible with older/newer transformers + trl.
-"""
+import argparse, inspect, math, os, torch
+from typing import Dict, Any
 
-import os, json, math, argparse, random
-from typing import List
-from datasets import Dataset, concatenate_datasets
-from transformers import (AutoModelForCausalLM, AutoTokenizer, TrainingArguments,
-                          DataCollatorForLanguageModeling)
+from datasets import load_dataset, concatenate_datasets
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TrainingArguments,
+    DataCollatorForLanguageModeling,
+)
 from trl import SFTTrainer
-from peft import LoraConfig
 
-# ---------------- Args ----------------
+
+# ---------------------------
+# Arg parsing
+# ---------------------------
 def parse_args():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", required=True)
-    ap.add_argument("--train_jsonl", nargs="+", required=True)
-    ap.add_argument("--train_weights", nargs="+", type=float, default=None)
-    ap.add_argument("--eval_holdout", type=float, default=0.02)
+    # I/O + model
+    ap.add_argument("--model", required=True, help="HF model id or local path")
+    ap.add_argument(
+        "--train_jsonl", nargs="+", required=True,
+        help="One or more JSONL files; each row must have a `messages` list"
+    )
     ap.add_argument("--output_dir", required=True)
-    ap.add_argument("--epochs", type=float, default=2.0)
+
+    # Training schedule
+    ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--batch_size", type=int, default=2)
-    ap.add_argument("--grad_accum", type=int, default=16)
+    ap.add_argument("--grad_accum", type=int, default=8)
     ap.add_argument("--warmup_ratio", type=float, default=0.03)
+    ap.add_argument("--max_steps", type=int, default=-1)
+
+    # Precision / perf
     ap.add_argument("--max_seq_len", type=int, default=2048)
     ap.add_argument("--bf16", action="store_true")
     ap.add_argument("--fp16", action="store_true")
     ap.add_argument("--tf32", action="store_true")
     ap.add_argument("--packing", action="store_true")
-    ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--save_steps", type=int, default=1000)
-    ap.add_argument("--logging_steps", type=int, default=25)
-    ap.add_argument("--eval_steps", type=int, default=1000)
-    ap.add_argument("--max_steps", type=int, default=-1)
     ap.add_argument("--gradient_checkpointing", action="store_true")
-    ap.add_argument("--use_flash_attn", action="store_true")
-    ap.add_argument("--report_to", default="none")
-    ap.add_argument("--wandb_project", default="toddric")
-    ap.add_argument("--lora_r", type=int, default=16)
-    ap.add_argument("--lora_alpha", type=int, default=32)
-    ap.add_argument("--lora_dropout", type=float, default=0.05)
-    ap.add_argument("--sentinel", default=None)
-    ap.add_argument("--target_modules", nargs="*", default=None)
-    ap.add_argument("--save_merged", action="store_true")
+
+    # Logging / saving / eval
+    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--save_steps", type=int, default=500)
+    ap.add_argument("--logging_steps", type=int, default=10)
+    ap.add_argument("--eval_steps", type=int, default=500)
+    ap.add_argument(
+        "--eval_holdout", type=float, default=0.0,
+        help="0.0 disables eval; otherwise split this fraction from train"
+    )
+    ap.add_argument("--report_to", default="none")  # e.g. none|wandb|tensorboard
     return ap.parse_args()
 
-# ---------------- Data ----------------
-def load_jsonl_as_dataset(path: str) -> Dataset:
-    rows = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip(): continue
-            rec = json.loads(line)
-            msgs = rec.get("messages") or []
-            if not msgs or msgs[0].get("role") != "user":
-                continue
-            rows.append({
-                "system": rec.get("system",""),
-                "messages": msgs,
-                "tags": rec.get("tags",[])
-            })
-    return Dataset.from_list(rows)
 
-def weighted_mix(dsets: List[Dataset], weights: List[float]) -> Dataset:
-    s = sum(weights); weights = [w/s for w in weights]
-    sizes = [len(d) for d in dsets]
-    total = sum(sizes)
-    target = [max(0,int(total*w)) for w in weights]
-    rng = random.Random(1234)
-    parts=[]
-    for d,want in zip(dsets,target):
-        if want<=0 or len(d)==0: continue
-        idx=[rng.randrange(0,len(d)) for _ in range(want)]
-        parts.append(d.select(idx))
-    return concatenate_datasets(parts) if parts else concatenate_datasets(dsets)
-
-# ---------------- Train ----------------
-def train():
-    args = parse_args()
-    random.seed(args.seed)
-
-    sentinel = ""
-    if args.sentinel:
-        with open(args.sentinel,"r",encoding="utf-8") as f:
-            sentinel=f.read().strip()+"\n\n"
-
-    tok = AutoTokenizer.from_pretrained(args.model, use_fast=True)
-    if tok.pad_token is None: tok.pad_token=tok.eos_token
-
-    # safer model load (no device_map)
-    model_kwargs=dict(torch_dtype="auto", low_cpu_mem_usage=False)
-    if args.use_flash_attn:
-        try: model_kwargs["attn_implementation"]="flash_attention_2"
-        except: pass
+def _supports_arg(cls, arg_name: str) -> bool:
     try:
-        model=AutoModelForCausalLM.from_pretrained(args.model, **model_kwargs)
-    except TypeError:
-        model_kwargs.pop("attn_implementation",None)
-        model=AutoModelForCausalLM.from_pretrained(args.model, **model_kwargs)
+        sig = inspect.signature(cls.__init__)
+        return arg_name in sig.parameters
+    except Exception:
+        return False
 
-    dsets=[load_jsonl_as_dataset(p) for p in args.train_jsonl]
-    train_ds=weighted_mix(dsets,args.train_weights) if (args.train_weights and len(args.train_weights)==len(dsets)) else concatenate_datasets(dsets)
-    train_ds=train_ds.shuffle(seed=args.seed)
-    n=len(train_ds)
-    eval_n=max(32,int(n*args.eval_holdout))
-    eval_ds=train_ds.select(range(eval_n))
-    train_ds=train_ds.select(range(eval_n,n))
 
-    def format_example(ex):
-        system=ex.get("system","")
-        if sentinel: system=sentinel+system
-        messages=ex["messages"]
-        if messages[-1]["role"]!="assistant":
-            messages.append({"role":"assistant","content":""})
-        msgs=[]
-        if system: msgs.append({"role":"system","content":system})
-        msgs.extend(messages)
-        if hasattr(tok,"apply_chat_template"):
-            text=tok.apply_chat_template(msgs,tokenize=False,add_generation_prompt=False)
-        else:
-            text="\n".join([f"{m['role']}: {m['content']}" for m in msgs])
-        return {"text":text}
-
-    train_fmt=train_ds.map(format_example,remove_columns=train_ds.column_names,desc="format train")
-    eval_fmt=eval_ds.map(format_example,remove_columns=eval_ds.column_names,desc="format eval")
-
-    lora=LoraConfig(r=args.lora_r,lora_alpha=args.lora_alpha,lora_dropout=args.lora_dropout,
-                    bias="none",task_type="CAUSAL_LM",target_modules=args.target_modules or None)
-
-    # TrainingArguments shim
-    from inspect import signature
-    steps_per_epoch=max(1,math.ceil(len(train_fmt)/max(1,args.batch_size)/max(1,args.grad_accum)))
-    tot_steps=int(args.epochs*steps_per_epoch) if args.max_steps<0 else args.max_steps
-    ta_kwargs=dict(
+def build_training_args(args) -> TrainingArguments:
+    kwargs: Dict[str, Any] = dict(
         output_dir=args.output_dir,
-        per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=max(1,args.batch_size//2),
-        gradient_accumulation_steps=args.grad_accum,
+        num_train_epochs=args.epochs,
         learning_rate=args.lr,
+        per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps=args.grad_accum,
         warmup_ratio=args.warmup_ratio,
-        num_train_epochs=math.ceil(args.epochs) if args.max_steps<0 else 1,
-        max_steps=tot_steps if args.max_steps>0 else -1,
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
-        save_total_limit=3,
-        bf16=args.bf16, fp16=args.fp16, tf32=args.tf32,
-        gradient_checkpointing=args.gradient_checkpointing,
-        lr_scheduler_type="cosine", optim="adamw_torch",
+        seed=args.seed,
+        report_to=args.report_to,
     )
-    sig=signature(TrainingArguments.__init__)
-    if "evaluation_strategy" in sig.parameters:
-        ta_kwargs.update({"evaluation_strategy":"steps","eval_steps":args.eval_steps,
-                          "report_to":[args.report_to] if args.report_to!="none" else []})
-    elif "evaluate_during_training" in sig.parameters:
-        ta_kwargs.update({"evaluate_during_training":True,"eval_steps":args.eval_steps})
-    else:
-        ta_kwargs.update({"do_eval":True})
-    targs=TrainingArguments(**ta_kwargs)
 
-    # SFTTrainer shim
-    from inspect import signature as _sig
-    def _formatting_func(batch): return batch["text"]
-    sft_params=_sig(SFTTrainer.__init__).parameters
-    sft_kwargs=dict(model=model,train_dataset=train_fmt,eval_dataset=eval_fmt,
-                    peft_config=lora,data_collator=DataCollatorForLanguageModeling(tok,mlm=False),args=targs)
-    if "tokenizer" in sft_params: sft_kwargs["tokenizer"]=tok
-    if "dataset_text_field" in sft_params: sft_kwargs["dataset_text_field"]="text"
-    elif "formatting_func" in sft_params: sft_kwargs["formatting_func"]=_formatting_func
-    if "max_seq_length" in sft_params: sft_kwargs["max_seq_length"]=args.max_seq_len
-    if "packing" in sft_params: sft_kwargs["packing"]=args.packing
+    # Optional / version-dependent flags
+    if _supports_arg(TrainingArguments, "save_total_limit"):
+        kwargs["save_total_limit"] = 2
+    if _supports_arg(TrainingArguments, "max_steps") and args.max_steps and args.max_steps > 0:
+        kwargs["max_steps"] = args.max_steps
+    if _supports_arg(TrainingArguments, "bf16"):
+        kwargs["bf16"] = bool(args.bf16)
+    if _supports_arg(TrainingArguments, "fp16"):
+        kwargs["fp16"] = bool(args.fp16)
+    if _supports_arg(TrainingArguments, "tf32"):
+        kwargs["tf32"] = bool(args.tf32)
+    if _supports_arg(TrainingArguments, "eval_steps") and args.eval_steps:
+        kwargs["eval_steps"] = args.eval_steps
 
-    trainer=SFTTrainer(**sft_kwargs)
-    trainer.train()
+    # Eval toggles differ by version
+    if _supports_arg(TrainingArguments, "evaluation_strategy"):
+        kwargs["evaluation_strategy"] = "steps" if args.eval_holdout and args.eval_holdout > 0 else "no"
+    elif _supports_arg(TrainingArguments, "do_eval"):
+        kwargs["do_eval"] = bool(args.eval_holdout and args.eval_holdout > 0)
 
-    trainer.model.save_pretrained(args.output_dir)
-    tok.save_pretrained(args.output_dir)
+    # Gradient checkpointing (moved around across versions)
+    if _supports_arg(TrainingArguments, "gradient_checkpointing"):
+        kwargs["gradient_checkpointing"] = bool(args.gradient_checkpointing)
 
-    if args.save_merged:
+    return TrainingArguments(**kwargs)
+
+
+def main():
+    args = parse_args()
+
+    # Perf knobs
+    torch.backends.cuda.matmul.allow_tf32 = bool(args.tf32)
+    if args.tf32:
         try:
-            from peft import PeftModel
-            base=AutoModelForCausalLM.from_pretrained(args.model,torch_dtype="auto")
-            merged=PeftModel.from_pretrained(base,args.output_dir)
-            merged=merged.merge_and_unload()
-            merged.save_pretrained(os.path.join(args.output_dir,"merged"))
-        except Exception as e:
-            print(f"[warn] merge failed: {e}")
+            torch.set_float32_matmul_precision("high")
+        except Exception:
+            pass
 
-if __name__=="__main__":
-    train()
+    # Tokenizer (legacy=True keeps old token splitting; avoids behavior shift)
+    tok = AutoTokenizer.from_pretrained(args.model, legacy=True)
+    # Fallback chat template if none is provided by the tokenizer
+    if not getattr(tok, "chat_template", None):
+        tok.chat_template = """{{ bos_token if bos_token is defined else '' }}{%- for m in messages -%}
+{%- if m['role'] == 'system' -%}<|system|>
+{{ m['content'] }}
+{%- elif m['role'] == 'user' -%}<|user|>
+{{ m['content'] }}
+{%- elif m['role'] == 'assistant' -%}<|assistant|>
+{{ m['content'] }}
+{%- endif -%}
+{%- endfor -%}"""
+
+    # Load & combine datasets
+    splits = [load_dataset("json", data_files=f, split="train") for f in args.train_jsonl]
+    train_all = concatenate_datasets(splits)
+
+    # Optional eval holdout
+    eval_ds = None
+    if args.eval_holdout and args.eval_holdout > 0:
+        train_all = train_all.shuffle(seed=args.seed)
+        n_total = len(train_all)
+        n_eval = max(1, int(math.floor(n_total * float(args.eval_holdout))))
+        eval_ds = train_all.select(range(n_eval))
+        train_all = train_all.select(range(n_eval, n_total))
+
+    # Map: messages -> text
+    def format_row(ex):
+        msgs = ex["messages"]
+        try:
+            text = tok.apply_chat_template(
+                msgs, tokenize=False, add_generation_prompt=False
+            )
+        except Exception:
+            # ultra-safe fallback
+            parts = []
+            for m in msgs:
+                parts.append(f"<|{m['role']}|>\n{m['content']}\n")
+            text = "".join(parts)
+        return {"text": text}
+
+    train_fmt = train_all.map(
+        format_row, remove_columns=train_all.column_names, desc="format train"
+    )
+    if eval_ds is not None:
+        eval_fmt = eval_ds.map(
+            format_row, remove_columns=eval_ds.column_names, desc="format eval"
+        )
+    else:
+        eval_fmt = None
+
+    # Dtype selection
+    if args.bf16:
+        torch_dtype = torch.bfloat16
+    elif args.fp16:
+        torch_dtype = torch.float16
+    else:
+        torch_dtype = torch.float32
+    # Load model
+    model = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch_dtype, low_cpu_mem_usage=True, device_map="auto")
+
+    # Training args (version-flex)
+    training_args = build_training_args(args)
+
+    # Data collator
+    collator = DataCollatorForLanguageModeling(tok, mlm=False)
+
+    # ----- Build SFTTrainer with version compatibility -----
+    sft_sig = inspect.signature(SFTTrainer.__init__).parameters
+    def sft_has(param: str) -> bool:
+        return param in sft_sig
+
+    sft_kwargs = {
+        "model": model,
+        "train_dataset": train_fmt,
+        "args": training_args,
+        "data_collator": collator,
+    }
+    # Optional / version-dependent SFT args
+    if eval_fmt is not None and sft_has("eval_dataset"):
+        sft_kwargs["eval_dataset"] = eval_fmt
+    if sft_has("tokenizer"):
+        sft_kwargs["tokenizer"] = tok
+    if sft_has("dataset_text_field"):
+        sft_kwargs["dataset_text_field"] = "text"
+    if sft_has("max_seq_length"):
+        sft_kwargs["max_seq_length"] = args.max_seq_len
+    if sft_has("packing"):
+        sft_kwargs["packing"] = bool(args.packing)
+
+    trainer = SFTTrainer(**sft_kwargs)
+
+    # Very old TRL: attach tokenizer after init
+    if not sft_has("tokenizer"):
+        trainer.tokenizer = tok
+
+    # Train & save
+    trainer.train()
+    try:
+        trainer.save_model(args.output_dir)
+    except Exception:
+        # Some TRL builds save via model.save_pretrained
+        model.save_pretrained(args.output_dir)
+
+
+if __name__ == "__main__":
+    main()
+
