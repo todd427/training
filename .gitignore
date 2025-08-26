@@ -1,11 +1,6 @@
-epub
-mail
-memories
-out
-chatgpt
 scripts.old
-gdoc
 eval
+chatgpt/chatgpt.zip
 eval_results.csv
 # training outputs
 ckpts/
