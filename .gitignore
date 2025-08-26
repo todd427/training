@@ -3,7 +3,10 @@ mail
 memories
 out
 chatgpt
-
+scripts.old
+gdoc
+eval
+eval_results.csv
 # training outputs
 ckpts/
 *.pt
