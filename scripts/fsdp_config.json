@@ -1,0 +1,10 @@
+{
+  "fsdp_auto_wrap_policy": "TRANSFORMER_BASED_WRAP",
+  "transformer_layer_cls_to_wrap": ["GPTNeoXLayer"],
+  "limit_all_gathers": true,
+  "forward_prefetch": true,
+  "use_orig_params": true,
+  "sync_module_states": true,
+  "activation_checkpointing": true
+}
+
