@@ -2,6 +2,7 @@ scripts.old
 eval
 chatgpt/chatgpt.zip
 eval_results.csv
+venv312
 # training outputs
 ckpts/
 *.pt

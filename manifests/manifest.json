@@ -1,0 +1,38 @@
+{
+  "input": "data/sft_ready/all.jsonl",
+  "train": {
+    "count": 1520,
+    "avg_chars": 2948.9,
+    "by_source": {
+      "mail/sent": 384,
+      "chatgpt-neutral": 259,
+      "memories": 52,
+      "gdoc/books": 590,
+      "books": 235
+    }
+  },
+  "val": {
+    "count": 82,
+    "avg_chars": 2952.4,
+    "by_source": {
+      "mail/sent": 21,
+      "chatgpt-neutral": 14,
+      "memories": 2,
+      "gdoc/books": 32,
+      "books": 13
+    }
+  },
+  "test": {
+    "count": 82,
+    "avg_chars": 3081.0,
+    "by_source": {
+      "mail/sent": 21,
+      "chatgpt-neutral": 14,
+      "memories": 2,
+      "gdoc/books": 32,
+      "books": 13
+    }
+  },
+  "total": 1684,
+  "seed": 1337
+}
