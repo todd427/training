@@ -2,24 +2,22 @@
 # -*- coding: utf-8 -*-
 
 """
-LoRA / QLoRA training with .env-driven configuration (restored + enhanced)
-- Loads .env (ENV_FILE, CWD/.env, repo/.env, parent/.env) *before* torch/transformers
-- EnvDefaults picks up MODEL_ID, TRAIN_JSONL, VAL_JSONL, OUT_DIR (or LORA_ADAPTER_DIR), etc.
-- Chat-style JSONL with assistant-only loss masking (fast tokenizer required)
-- dtype/torch_dtype compatibility shim; DEVICE_MAP + TORCH_DTYPE respected
+LoRA / QLoRA training with .env-driven configuration (robust)
+- Loads .env before torch/transformers (ENV_FILE, CWD/.env, repo/.env, parent/.env)
+- EnvDefaults picks up MODEL_ID, TRAIN_JSONL, VAL_JSONL, OUT_DIR (or LORA_ADAPTER_DIR)
+- Chat JSONL dataset with assistant-only loss masking (fast tokenizer required)
+- dtype API: try dtype= then fallback to torch_dtype= (no deprecation spam)
 - Attention auto-picker: FlashAttention-2 -> SDPA
-- Step-wise evaluation + save-best (API-compatible across transformers versions)
-- Optional sample generation + transcript logging after training
-
-Usage (env-first, then CLI can override):
-  python scripts/train_lora.py --base Qwen/Qwen2.5-7B-Instruct \
-    --train data/train.jsonl --val data/val.jsonl --out out/qwen2p5-7b-lora
+- device_map=auto safe: disable Trainer's device move if needed; optional VRAM caps + CPU offload
+- QLoRA turns ON only if bitsandbytes is importable; otherwise cleanly OFF
+- Step-wise eval + save-best (by eval_loss), prints eval PPL
+- Optional post-train sampling log
 """
 
 # ── Load .env BEFORE importing torch / transformers ───────────────────────────
 import os, re, json, math, inspect, argparse, pathlib
 from dataclasses import dataclass, asdict
-from typing import Optional, Dict, List
+from typing import Dict, List
 
 def _load_env_early():
     try:
@@ -65,26 +63,29 @@ def expand_rel(p: str) -> str:
         return str(pathlib.Path(p).expanduser().resolve())
     return str((REPO_ROOT / p).expanduser().resolve())
 
-# ── Optional 4-bit quantization & PEFT ────────────────────────────────────────
+# ── Quantization deps detection (robust) ──────────────────────────────────────
 _HAS_BNB = False
 try:
-    from bitsandbytes.config import BitsAndBytesConfig
+    import bitsandbytes as bnb  # verifies the actual package is importable
     _HAS_BNB = True
 except Exception:
-    BitsAndBytesConfig = None
     _HAS_BNB = False
 
+# Prefer the class exported by transformers; fall back to internal bnb path.
 try:
-    from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-except Exception as e:
-    raise RuntimeError("peft is required for LoRA/QLoRA training. pip install peft") from e
+    from transformers import BitsAndBytesConfig
+except Exception:
+    try:
+        from bitsandbytes.config import BitsAndBytesConfig  # may not exist in some installs
+    except Exception:
+        BitsAndBytesConfig = None
 
-# ── Transformers / Torch ──────────────────────────────────────────────────────
+# ── Core deps ─────────────────────────────────────────────────────────────────
 import torch
 from torch.utils.data import Dataset
 from transformers import (
     AutoTokenizer, AutoModelForCausalLM, AutoConfig,
-    Trainer, TrainingArguments, set_seed
+    Trainer, TrainingArguments, set_seed, trainer as _trainer_mod
 )
 
 # ── Accelerate unwrap_model shim (compat) ─────────────────────────────────────
@@ -100,7 +101,7 @@ except Exception:
 
 # ── Utils ─────────────────────────────────────────────────────────────────────
 def pick_dtype() -> torch.dtype:
-    """Prefer bfloat16 on modern CUDA; else fp16 if older; else fp32 CPU."""
+    """Prefer bfloat16 on Hopper/Ada; else fp16 on older CUDA; else fp32 CPU."""
     if torch.cuda.is_available():
         maj = torch.cuda.get_device_capability(0)[0]
         return torch.bfloat16 if maj >= 8 else torch.float16
@@ -111,14 +112,6 @@ def canon(s: str) -> str:
     s = re.sub(r"[ \t]+", " ", s)
     s = re.sub(r"\n{3,}", "\n\n", s)
     return s.strip()
-
-def _dtype_kwargs(dtype: torch.dtype) -> Dict[str, torch.dtype]:
-    """Use `dtype` on new transformers, else `torch_dtype` on old."""
-    try:
-        params = inspect.signature(AutoModelForCausalLM.from_pretrained).parameters
-        return {"dtype": dtype} if "dtype" in params else {"torch_dtype": dtype}
-    except Exception:
-        return {"torch_dtype": dtype}
 
 def _flash_attn_available() -> bool:
     try:
@@ -132,7 +125,7 @@ def pick_attn_impl() -> str:
 
 # ── Dataset / Collator (assistant-only loss) ──────────────────────────────────
 class JsonlDataset(Dataset):
-    """Expects lines like: {"messages":[{"role":"system","content":"..."}, ... ]}"""
+    """Each line: {"messages":[{"role":"system","content":"..."}, ... ]}"""
     def __init__(self, path: str):
         self.rows: List[dict] = []
         path = os.path.expanduser(path)
@@ -201,14 +194,64 @@ class ChatCollator:
         return batch_enc
 
 # ── TrainingArguments helper (API-compat) ─────────────────────────────────────
-
-def make_training_args(eval_steps, save_steps, **kw):
+def make_training_args(eval_steps: int, save_steps: int, **kw) -> TrainingArguments:
     TA = TrainingArguments
     params = set(inspect.signature(TA.__init__).parameters.keys())
-    # ...
+
+    # evaluation strategy
+    if "evaluation_strategy" in params:
+        kw["evaluation_strategy"] = "steps"
+    elif "eval_strategy" in params:
+        kw["eval_strategy"] = "steps"
+
+    # save strategy + intervals
+    if "save_strategy" in params:
+        kw["save_strategy"] = "steps"
+    if "eval_steps" in params:
+        kw["eval_steps"] = eval_steps
+    if "save_steps" in params:
+        kw["save_steps"] = save_steps
+
+    # best checkpoint recovery
+    if "load_best_model_at_end" in params:
+        kw["load_best_model_at_end"] = True
+    if "metric_for_best_model" in params:
+        kw["metric_for_best_model"] = "eval_loss"
+    if "greater_is_better" in params:
+        kw["greater_is_better"] = False
+
+    # Avoid Trainer re-moving a sharded model when using device_map=auto
     if "place_model_on_device" in params:
         kw.setdefault("place_model_on_device", False)
-    return TA(**{k: v for k, v in kw.items() if k in params})
+
+    # QoL defaults
+    if "tf32" in params:
+        kw.setdefault("tf32", True)
+    if "logging_steps" in params:
+        kw.setdefault("logging_steps", max(1, eval_steps // 2))
+
+    # Prefer 8-bit optimizer states when bitsandbytes is available
+    if "optim" in params and _HAS_BNB:
+        kw.setdefault("optim", "adamw_bnb_8bit")
+
+    supported = {k: v for k, v in kw.items() if k in params}
+    return TA(**supported)
+
+# ── Trainer compat: disable auto-move when needed ─────────────────────────────
+def _disable_trainer_move_if_needed(device_map: str):
+    """If TrainingArguments doesn't support `place_model_on_device` and we're
+    using a sharded device_map, neutralize Trainer's mover to avoid meta crash."""
+    try:
+        ta_params = set(inspect.signature(TrainingArguments.__init__).parameters.keys())
+    except Exception:
+        ta_params = set()
+    sharded = (device_map not in (None, "", "cpu", "cuda:0"))
+    if "place_model_on_device" not in ta_params and sharded:
+        _orig = _trainer_mod.Trainer._move_model_to_device
+        def _no_move(self, model, device):
+            return model
+        _trainer_mod.Trainer._move_model_to_device = _no_move
+        print(f"[compat] Patched Trainer._move_model_to_device (device_map={device_map})")
 
 # ── Config dataclass from .env ────────────────────────────────────────────────
 @dataclass
@@ -221,7 +264,7 @@ class EnvDefaults:
 
     # quant / device
     no_4bit: bool = os.getenv("NO_4BIT", "0") in ("1","true","True")
-    load_in_4bit: bool = os.getenv("LOAD_IN_4BIT", "0") in ("1","true","True")
+    load_in_4bit: bool = os.getenv("LOAD_IN_4BIT", "0") in ("1","true","True")  # informational
     device_map_env: str = os.getenv("DEVICE_MAP", "auto")
     torch_dtype_env: str = os.getenv("TORCH_DTYPE", "auto")
     torch_device: str = os.getenv("TORCH_DEVICE", "").strip()  # e.g., "cuda:0"
@@ -279,7 +322,7 @@ def load_base(model_id: str, use_4bit: bool, device_map: str, forced_dtype: str)
         cfg.sliding_window = None
 
     quant_cfg = None
-    if use_4bit and _HAS_BNB:
+    if use_4bit and _HAS_BNB and BitsAndBytesConfig is not None:
         quant_cfg = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
@@ -287,36 +330,31 @@ def load_base(model_id: str, use_4bit: bool, device_map: str, forced_dtype: str)
             bnb_4bit_use_double_quant=True,
         )
 
-    auto_dtype = pick_dtype()
     want_dtype = _parse_dtype_label(forced_dtype, pick_dtype())
-    common = dict(device_map=device_map, attn_implementation=pick_attn_impl(),
-                  quantization_config=quant_cfg, low_cpu_mem_usage=True)
-    try:
-        model = AutoModelForCausalLM.from_pretrained(model_id, dtype=want_dtype, **common)
-    except TypeError as e:
-        if "dtype" in str(e):
-            model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=want_dtype, **common)
-        else:
-            raise
     attn_impl = pick_attn_impl()
 
     common = dict(
         device_map=device_map,
         attn_implementation=attn_impl,
         quantization_config=quant_cfg,
-        low_cpu_mem_usage=True,   # helpful with large shards
+        low_cpu_mem_usage=True,
     )
+    # Cap VRAM and offload when auto-sharding to avoid OOM spikes
+    if device_map == "auto" and torch.cuda.is_available():
+        total = torch.cuda.get_device_properties(0).total_memory // (1024**2)  # MiB
+        cap = max(12000, int(total * 0.90))  # leave headroom
+        common["max_memory"] = {0: f"{cap}MiB", "cpu": "64GiB"}
+        off_dir = os.path.join(os.environ.get("OFFLOAD_DIR", "."), "offload")
+        os.makedirs(off_dir, exist_ok=True)
+        common["offload_folder"] = off_dir
+        print(f"[load] max_memory cap={cap}MiB, offload_folder={off_dir}")
 
-    # ← try new API first (no deprecation), then gracefully fall back
+    # Try new API first (dtype=), then gracefully fall back to torch_dtype=
     try:
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id, dtype=want_dtype, **common
-        )
+        model = AutoModelForCausalLM.from_pretrained(model_id, dtype=want_dtype, **common)
     except TypeError as e:
         if "dtype" in str(e):
-            model = AutoModelForCausalLM.from_pretrained(
-                model_id, torch_dtype=want_dtype, **common
-            )
+            model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=want_dtype, **common)
         else:
             raise
 
@@ -325,10 +363,27 @@ def load_base(model_id: str, use_4bit: bool, device_map: str, forced_dtype: str)
     model.config.use_cache = False
 
     if quant_cfg:
+        from peft import prepare_model_for_kbit_training
         model = prepare_model_for_kbit_training(model)
 
-    model.gradient_checkpointing_enable()
+    # Leaner checkpointing to reduce spikes
+    try:
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+    except TypeError:
+        model.gradient_checkpointing_enable()
+
     return tok, model
+
+def build_peft(model, r=32, alpha=64, dropout=0.05, target_modules=None):
+    from peft import LoraConfig, get_peft_model
+    if target_modules is None:
+        target_modules = ["q_proj","k_proj","v_proj","o_proj"]
+    lcfg = LoraConfig(
+        r=r, lora_alpha=alpha, lora_dropout=dropout,
+        bias="none", task_type="CAUSAL_LM",
+        target_modules=target_modules,
+    )
+    return get_peft_model(model, lcfg)
 
 # ── Post-train sampling / logging ─────────────────────────────────────────────
 def sample_and_log(model, tok, envd: EnvDefaults):
@@ -402,9 +457,8 @@ def main():
     print(f"[train_lora] Validation : {args.val}")
     print(f"[train_lora] Output dir : {args.out}")
     print(f"[train_lora] Device map : {args.device_map}")
-
+    # Respect only cuda:N forms for TORCH_DEVICE
     if args.torch_device:
-        import re
         m = re.fullmatch(r"cuda:(\d+)", str(args.torch_device).strip())
         if m:
             try:
@@ -412,19 +466,21 @@ def main():
                 print(f"[env] TORCH_DEVICE -> {args.torch_device}")
             except Exception as e:
                 print(f"[warn] TORCH_DEVICE ignored: {e}")
-        else:
-            # e.g., "auto" or "cpu" → ignore, since device_map will handle it
-            pass
-
     print("──────────────────────────────────────────────")
 
     set_seed(args.seed)
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
-    use_4bit = (not args.no_4bit) and (_HAS_BNB and (EnvDefaults.load_in_4bit or True))
+    # QLoRA ON if bitsandbytes is importable and NO_4BIT is not set
+    use_4bit = _HAS_BNB and (not args.no_4bit)
+    print(f"[train_lora] QLoRA 4-bit: {'ON' if use_4bit else 'OFF'}")
+
     # Load base + tokenizer
     tok, base = load_base(args.base, use_4bit=use_4bit, device_map=args.device_map, forced_dtype=args.torch_dtype)
+
+    # Disable Trainer move if TrainingArguments lacks flag and we shard
+    _disable_trainer_move_if_needed(args.device_map)
 
     # LoRA wrap
     model = build_peft(base, r=args.r, alpha=args.alpha, dropout=args.dropout)
@@ -496,26 +552,6 @@ def main():
     if args.log_transcripts:
         sample_and_log(model, tok, EnvDefaults())
 
-from peft import LoraConfig, get_peft_model
-
-def build_peft(model, r=32, alpha=64, dropout=0.05, target_modules=None):
-    """
-    Wraps the base model with a LoRA adapter.
-    Default targets hit the attention projections; extend to MLP if you like.
-    """
-    if target_modules is None:
-        # Safe default across Llama/Qwen/Mistral-style blocks
-        target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
-
-    lcfg = LoraConfig(
-        r=r,
-        lora_alpha=alpha,
-        lora_dropout=dropout,
-        bias="none",
-        task_type="CAUSAL_LM",
-        target_modules=target_modules,
-    )
-    return get_peft_model(model, lcfg)
-
 if __name__ == "__main__":
     main()
+
