@@ -1,0 +1,79 @@
+{
+  "base": {
+    "total": 5,
+    "pass": 5,
+    "details": [
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- Lectures will start on Monday, September 15th, 2025.\n- The exact date is specified as September 15th, 2025.\n- This marks the beginning of the lecture period."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- Multi-factor authentication (MFA) is mandatory.\n- Passwords must be updated every 90 days.\n- Reusing passwords is strictly prohibited."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- Data loss prevention: Regular backups ensure that your data is safe in case of hardware failure, software corruption, or human error.\n- Business continuity: With backups, you can quickly recover and get back to work if something goes wrong, minimizing downtime and maintaining productivity.\n- Compliance and accountability: Regular backups provide a record of changes and updates, helping you meet regulatory requirements and demonstrate accountability for data management."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- The meeting's day was changed from Tuesday to Friday.\n- The agenda for the meeting remained the same.\n- The time of the meeting is not specified in the given information."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- Ensure software quality and reliability by catching bugs early in the development process.\n- Reduce the time and cost associated with debugging and fixing issues later in the development cycle.\n- Improve code maintainability and confidence in changes made to existing codebases."
+      }
+    ]
+  },
+  "lora": {
+    "total": 5,
+    "pass": 5,
+    "details": [
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- Lectures start on Monday, September 15th, 2025.\n- The exact date is specified as September 15th, 2025.\n- This message indicates the beginning of lectures for the academic year."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- The new policy mandates Multi-Factor Authentication (MFA) for all users.\n- It requires passwords to be updated every 90 days.\n- Password reuse is strictly prohibited under the new policy."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- Protects against data loss due to hardware failure, software corruption, or user error.\n- Ensures business continuity by allowing quick recovery in case of disaster or cyberattack.\n- Helps maintain regulatory compliance by providing a record of changes and updates."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- The meeting was rescheduled from Tuesday to Friday.\n- The original agenda remained the same.\n- There were no changes to the planned discussion topics."
+      },
+      {
+        "ok": true,
+        "got": 3,
+        "want": 3,
+        "reply": "assistant\n\n- They help ensure that code changes do not break existing functionality.\n- They allow developers to test individual components in isolation, making it easier to identify where bugs occur.\n- They enable rapid detection of regressions after refactoring or adding new features."
+      }
+    ]
+  },
+  "config": {
+    "stop": "END",
+    "bullets": 3,
+    "load_in_4bit": true
+  }
+}

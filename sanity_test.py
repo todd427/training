@@ -33,6 +33,18 @@ def load_env():
 
 load_env()
 
+import os
+from transformers import StoppingCriteria, StoppingCriteriaList
+
+# ---- env / flags with safe defaults ----
+DO_SAMPLE = os.getenv("DO_SAMPLE", "0") not in ("0", "false", "False", "")
+TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
+TOP_P = float(os.getenv("TOP_P", "0.9"))
+MAX_NEW = int(os.getenv("MAX_NEW", "80"))
+REPETITION_PENALTY = float(os.getenv("REPETITION_PENALTY", "1.05"))
+
+print(f"[gen] max_new={MAX_NEW}  temperature={TEMPERATURE}  top_p={TOP_P}  do_sample={DO_SAMPLE}")
+
 # ---------- CLI ----------
 ap = argparse.ArgumentParser(description="Minimal sanity test for base+LoRA")
 ap.add_argument("--base", default=os.getenv("MODEL_ID", "meta-llama/Llama-3.1-8B-Instruct"),
