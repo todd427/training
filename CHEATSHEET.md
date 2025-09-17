@@ -1,29 +1,25 @@
 # LoRA + QLoRA Cheat-Sheet
 
 ## Core Ideas
-
-* **LoRA**: Freeze base model, inject trainable low-rank matrices (rank = *r*) into linear layers. Trains adapters only.
-* **QLoRA**: Load base weights in 4-bit (NF4 + double quant), keep compute in bf16/fp16, train LoRA on top.
+- **LoRA**: Freeze base model, inject trainable low-rank matrices (rank = *r*) into linear layers. Trains adapters only.
+- **QLoRA**: Load base weights in 4-bit (NF4 + double quant), keep compute in bf16/fp16, train LoRA on top.
 
 ---
 
 ## Data Prep
-
-* Format: `{ "messages": [{"role": "system"|"user"|"assistant", "content": "..."}, ...] }`
-* Render with `tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)`
-* Set: `tokenizer.pad_token = tokenizer.eos_token`
+- Format: `{ "messages": [{"role": "system"|"user"|"assistant", "content": "..."}, ...] }`
+- Render with `tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)`
+- Set: `tokenizer.pad_token = tokenizer.eos_token`
 
 ---
 
 ## Packing
-
-* Concatenate tokenized samples, split into fixed blocks (`max_length=2048` or `4096`).
-* Eliminates padding waste, improves throughput.
+- Concatenate tokenized samples, split into fixed blocks (`max_length=2048` or `4096`).
+- Eliminates padding waste, improves throughput.
 
 ---
 
 ## QLoRA Config
-
 ```python
 from transformers import BitsAndBytesConfig
 bnb = BitsAndBytesConfig(
@@ -37,15 +33,12 @@ bnb = BitsAndBytesConfig(
 ---
 
 ## LoRA Config
-
 **Target modules (Llama 3.x):**
-
-* `q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj`
+- `q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj`
 
 **Capacity knob (r):**
-
-* `r=32` → larger adapter (\~84M trainable on 8B), expressive
-* `r=16` → lighter (\~42M trainable), often enough for style
+- `r=32` → larger adapter (~84M trainable on 8B), expressive
+- `r=16` → lighter (~42M trainable), often enough for style
 
 ```python
 from peft import LoraConfig
@@ -62,7 +55,6 @@ lora = LoraConfig(
 ---
 
 ## Training Arguments (sane defaults)
-
 ```python
 TrainingArguments(
   output_dir="ckpts/toddric-llama-8B-lora",
@@ -84,33 +76,29 @@ TrainingArguments(
   report_to=[],
 )
 ```
-
 Optional: `weight_decay=0.05`, `max_grad_norm=1.0`
 
 ---
 
 ## Signs of Progress
-
-* **Loss drop**: expect eval loss \~1.2–1.5 (ppl ≈ 3.3–4.5) → useful adapter.
-* **Eval plateau**: stop when eval loss flatlines/rises for 2–3 evals.
-* **Outputs**: tuned model shows stylistic shift (tone, formatting, compliance).
+- **Loss drop**: expect eval loss ~1.2–1.5 (ppl ≈ 3.3–4.5) → useful adapter.
+- **Eval plateau**: stop when eval loss flatlines/rises for 2–3 evals.
+- **Outputs**: tuned model shows stylistic shift (tone, formatting, compliance).
 
 ---
 
 ## Pitfalls
-
-* Forgetting chat template → nonsense training.
-* Not setting pad\_token → padding issues.
-* No packing → wasted compute.
-* Forgetting `use_cache=False` → checkpointing errors.
-* Saving/merging wrong adapter → corrupted checkpoints.
+- Forgetting chat template → nonsense training.
+- Not setting pad_token → padding issues.
+- No packing → wasted compute.
+- Forgetting `use_cache=False` → checkpointing errors.
+- Saving/merging wrong adapter → corrupted checkpoints.
 
 ---
 
 ## Deployment
-
-* **Adapter inference**: efficient, small file.
-* **Merged model**: full weights with adapter baked in (larger, but portable).
+- **Adapter inference**: efficient, small file.
+- **Merged model**: full weights with adapter baked in (larger, but portable).
 
 ```python
 from transformers import AutoModelForCausalLM
@@ -124,13 +112,40 @@ merged.save_pretrained("ckpts/toddric-llama-8B-lora/merged")
 
 ---
 
-## Quick Checklist
+## Eval Workflow (picking the best checkpoint)
+1. **Prepare prompts**: 5–10 short, representative “Todd tasks” (email rewrite, critique, summary).
+2. **Deterministic pass**: run greedy decoding once to compare structure and instruction-following without sampling noise.
 
-* [ ] Data → `apply_chat_template`
-* [ ] `pad_token = eos_token`
-* [ ] Packing enabled (2048/4096)
-* [ ] QLoRA config correct (NF4, bf16 compute)
-* [ ] LoRA targets set; r=32 (try r=16 later)
-* [ ] Train with steps + early stopping
-* [ ] Eval side-by-side: looks *more Toddric*
+```bash
+python scripts/eval_sxs_llama.py \
+  --base_model meta-llama/Llama-3.1-8B-Instruct \
+  --ft_adapter ckpts/toddric-llama-8B-lora \
+  --bf16 --greedy --max_new 220
+```
+
+3. **Stylistic pass**: enable sampling to judge tone and voice.
+
+```bash
+python scripts/eval_sxs_llama.py \
+  --base_model meta-llama/Llama-3.1-8B-Instruct \
+  --ft_adapter ckpts/toddric-llama-8B-lora \
+  --bf16 --max_new 220
+```
+
+4. **Quantitative checks**: track `eval_loss`/perplexity from training logs; lower is better until it plateaus.
+5. **Leak check**: scan outputs for long verbatim spans from your training data. If present, you’re overfitting—prefer an earlier checkpoint.
+6. **Choose checkpoint**: pick the one with the **best eval loss** that also reads most “Toddric” in side-by-side outputs.
+7. **Archive metadata**: record commit hash, training args, step number, and a few example prompts/outputs alongside the chosen checkpoint.
+
+---
+
+## Quick Checklist (one-glance)
+- [ ] Data → `messages` rendered via `apply_chat_template`
+- [ ] `tokenizer.pad_token = tokenizer.eos_token`
+- [ ] Packing enabled (2048/4096)
+- [ ] QLoRA: NF4 + double quant; compute bf16/fp16
+- [ ] LoRA targets: q/k/v/o + gate/up/down; `r=32` (try `r=16` later)
+- [ ] Steps + early stopping; eval/save every 50–100 steps
+- [ ] Side-by-side eval shows stronger Toddric tone/structure
+- [ ] Archive best checkpoint + metadata (args, commit, step, samples)
 
