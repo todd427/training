@@ -1,0 +1,61 @@
+{"messages":[
+  {"role":"system","content":"Be concise and technically correct. Treat 'SFT' as 'supervised fine-tuning' of language models unless the user explicitly refers to something else."},
+  {"role":"user","content":"What does SFT mean in machine learning?"},
+  {"role":"assistant","content":"SFT stands for supervised fine-tuning: training a pretrained language model on labeled input→output pairs so it learns task format, tone, and preferences without relearning world knowledge."}
+]}
+{"messages":[
+  {"role":"system","content":"You teach LLM concepts clearly."},
+  {"role":"user","content":"Why does sequence packing help SFT of LLMs? Give three bullets."},
+  {"role":"assistant","content":"• Higher token utilization: concatenates samples to fill the context window, reducing padding waste.\n• More learning per step: batches contain dense tokens, improving gradient signal for the same compute.\n• Faster throughput: fewer wasted tokens → more effective updates per wall-clock time."}
+]}
+{"messages":[
+  {"role":"system","content":"Clarify acronyms explicitly on first use."},
+  {"role":"user","content":"SFT vs pretraining—how are they different?"},
+  {"role":"assistant","content":"Pretraining learns broad language patterns from large unlabeled text. SFT (supervised fine-tuning) uses labeled examples to teach task format, style, and preferences. Pretraining builds general competence; SFT aligns behavior to a target use case."}
+]}
+{"messages":[
+  {"role":"system","content":"Define LoRA in one paragraph."},
+  {"role":"user","content":"What is LoRA?"},
+  {"role":"assistant","content":"LoRA (Low-Rank Adaptation) freezes the base model and inserts small trainable low-rank matrices in selected linear layers (e.g., q/k/v/o and MLP projections). Training only these adapters yields compact checkpoints that steer style/behavior with minimal compute."}
+]}
+{"messages":[
+  {"role":"system","content":"Define QLoRA in one paragraph."},
+  {"role":"user","content":"What is QLoRA?"},
+  {"role":"assistant","content":"QLoRA combines 4-bit quantization of the base model (NF4 + double quant) with LoRA adapters trained in fp16/bf16. You fit large models on modest GPUs while updating only adapters, preserving quality close to full-precision fine-tunes."}
+]}
+{"messages":[
+  {"role":"system","content":"Explain benefits crisply."},
+  {"role":"user","content":"Give three reasons to use QLoRA instead of full fine-tuning."},
+  {"role":"assistant","content":"• Lower memory: 4-bit base weights fit on smaller GPUs.\n• Cheaper training: optimize only small adapters; faster and less VRAM.\n• Flexible deployment: swap or merge adapters without touching base weights."}
+]}
+{"messages":[
+  {"role":"system","content":"Disambiguate acronyms based on domain; prefer ML meanings here."},
+  {"role":"user","content":"Give me three bullets on why sequence packing helps SFT."},
+  {"role":"assistant","content":"Here SFT means supervised fine-tuning of LLMs.\n• Packing reduces padding → higher effective batch tokens.\n• Better gradient quality per update.\n• Improved wall-clock efficiency with the same hardware budget."}
+]}
+{"messages":[
+  {"role":"system","content":"Correct mistaken expansions gently and proceed."},
+  {"role":"user","content":"Tell me how SFT tires benefit from sequence packing."},
+  {"role":"assistant","content":"It sounds like you might mean SFT as \"supervised fine-tuning\" of language models, not tires. In ML, sequence packing helps by reducing padding, increasing token utilization, and speeding up training for the same compute."}
+]}
+{"messages":[
+  {"role":"system","content":"Always expand SFT on first use when the domain is ML."},
+  {"role":"user","content":"Can SFT teach a model new facts?"},
+  {"role":"assistant","content":"SFT (supervised fine-tuning) mainly teaches format, tone, and preferences. It can add narrow facts present in the labeled data, but it’s inefficient for broad knowledge; retrieval or continued pretraining are better for that."}
+]}
+{"messages":[
+  {"role":"system","content":"Concise, 4 bullets max."},
+  {"role":"user","content":"What layers do we typically target with LoRA on Llama 3.x?"},
+  {"role":"assistant","content":"Common targets: attention projections (q_proj, k_proj, v_proj, o_proj) and MLP projections (gate_proj, up_proj, down_proj). This coverage balances capacity with small adapter size."}
+]}
+{"messages":[
+  {"role":"system","content":"Explain the relationship between packing and eval quality."},
+  {"role":"user","content":"Does packing hurt validation metrics?"},
+  {"role":"assistant","content":"No—packing only changes how tokens are batched. As long as sequences aren’t interleaved across label boundaries, it preserves the learning signal while improving efficiency. Eval should be run un-packed to reflect real prompting conditions."}
+]}
+{"messages":[
+  {"role":"system","content":"Summarize in two sentences."},
+  {"role":"user","content":"LoRA vs QLoRA in one comparison?"},
+  {"role":"assistant","content":"LoRA trains low-rank adapters while keeping the full-precision base loaded. QLoRA does the same but loads the base in 4-bit, enabling larger models on smaller GPUs with minimal quality loss."}
+]}
+

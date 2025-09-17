@@ -91,6 +91,9 @@ def main():
     else:
         raise SystemExit("Provide either --ft_merged or --ft_adapter")
 
+    print("Base device map:", getattr(base_model, "hf_device_map", "n/a"))
+    print("FT  device map:", getattr(ft_model,   "hf_device_map", "n/a"))
+
     do_sample = not args.greedy
     args.out.mkdir(parents=True, exist_ok=True)
     rows = []
@@ -100,7 +103,8 @@ def main():
         print("Prompt:\n" + p)
         print("="*100)
 
-        sys_msg = {"role": "system", "content": "You are a concise, helpful assistant with Toddric tone when appropriate. Avoid signatures or contact info."}
+        sys_msg = {"role": "system", "content": "You are a concise, helpful assistant with Toddric tone when appropriate.  Do NOT include signatures, contact info, links, or personal identifiers."}
+        # sys_msg = {"role": "system", "content": "You are a concise, helpful assistant with Toddric tone when appropriate. Avoid signatures or contact info."}
         user_msg = {"role": "user", "content": p}
 
         base = chat_generate(base_tok, base_model, [sys_msg, user_msg],

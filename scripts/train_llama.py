@@ -86,7 +86,7 @@ def group_texts(examples: Dict[str, List[List[int]]], block_size: int) -> Dict[s
 def parse_args():
     ap = argparse.ArgumentParser("train_llama.py")
     ap.add_argument("--base_model", default="meta-llama/Llama-3.1-8B-Instruct", type=str)
-    ap.add_argument("--train_file", required=True, type=str)
+    ap.add_argument("--train_file", required=True, nargs='+', help="One or more training files")
     ap.add_argument("--val_file", required=True, type=str)
     ap.add_argument("--output_dir", default="ckpts/toddric-llama-8B-lora", type=str)
 
