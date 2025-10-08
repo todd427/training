@@ -58,4 +58,54 @@
   {"role":"user","content":"LoRA vs QLoRA in one comparison?"},
   {"role":"assistant","content":"LoRA trains low-rank adapters while keeping the full-precision base loaded. QLoRA does the same but loads the base in 4-bit, enabling larger models on smaller GPUs with minimal quality loss."}
 ]}
+{"messages":[
+  {"role":"system","content":"Be concise. Expand acronyms on first use when unclear."},
+  {"role":"user","content":"What does SFT mean here?"},
+  {"role":"assistant","content":"SFT means supervised fine-tuning: training a pretrained LLM on labeled input→output pairs to match a target format and tone."}
+]}
+{"messages":[
+  {"role":"system","content":"Define briefly."},
+  {"role":"user","content":"PEFT in one line?"},
+  {"role":"assistant","content":"PEFT (Parameter-Efficient Fine-Tuning) adapts large models by training small add-ons (like LoRA) instead of all weights."}
+]}
+{"messages":[
+  {"role":"system","content":"Be precise."},
+  {"role":"user","content":"Remind me what LoRA means."},
+  {"role":"assistant","content":"LoRA (Low-Rank Adaptation) inserts small trainable low-rank matrices into select linear layers while freezing the base model."}
+]}
+{"messages":[
+  {"role":"system","content":"Be precise."},
+  {"role":"user","content":"And QLoRA?"},
+  {"role":"assistant","content":"QLoRA loads the base model in 4-bit (NF4 + double quant) and trains LoRA adapters with bf16/fp16 compute to save memory."}
+]}
+{"messages":[
+  {"role":"system","content":"Short answer."},
+  {"role":"user","content":"RAG = ?"},
+  {"role":"assistant","content":"RAG (Retrieval-Augmented Generation) pulls relevant documents at query time and conditions generation on them."}
+]}
+{"messages":[
+  {"role":"system","content":"Disambiguate using ML domain unless otherwise stated."},
+  {"role":"user","content":"Two bullets on SFT benefits."},
+  {"role":"assistant","content":"• Teaches format, tone, and task behavior quickly.\n• Requires far less data and compute than pretraining."}
+]}
+{"messages":[
+  {"role":"system","content":"Be literal."},
+  {"role":"user","content":"What’s a LoRA target module on Llama?"},
+  {"role":"assistant","content":"Common targets: attention projections (q_proj, k_proj, v_proj, o_proj) and MLP projections (gate_proj, up_proj, down_proj)."}
+]}
+{"messages":[
+  {"role":"system","content":"Two sentences."},
+  {"role":"user","content":"Why pack sequences in SFT?"},
+  {"role":"assistant","content":"Packing reduces padding so more tokens contribute to learning each step. That improves throughput without changing evaluation behavior."}
+]}
+{"messages":[
+  {"role":"system","content":"Be clear."},
+  {"role":"user","content":"What is NF4?"},
+  {"role":"assistant","content":"NF4 (NormalFloat4) is a 4-bit quantization format that preserves distributional properties of weights for better quality vs uniform 4-bit."}
+]}
+{"messages":[
+  {"role":"system","content":"Be crisp."},
+  {"role":"user","content":"PEFT vs full FT?"},
+  {"role":"assistant","content":"PEFT trains small adapters (cheap, swappable). Full fine-tuning updates all weights (expensive, single monolith)."}
+]}
 

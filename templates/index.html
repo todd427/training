@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head>
+  <meta charset="utf-8"/><title>{{request.app.title}}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head><body>
+  <header><h1>JSONL Editor</h1><span class="muted">Data dir: {{data_dir}}</span></header>
+  <aside>
+    <h3>Files</h3>
+    <ul>
+      {% for f in files %}
+      <li><a href="/file/{{f}}">{{f}}</a></li>
+      {% else %}
+      <li class="muted">No *.jsonl files found</li>
+      {% endfor %}
+    </ul>
+  </aside>
+  <main>
+    <p>Select a file to view records.</p>
+  </main>
+</body></html>

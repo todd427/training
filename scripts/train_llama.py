@@ -6,23 +6,22 @@ QLoRA SFT for Llama 3.1 8B Instruct with:
 - native chat templating (tokenizer.apply_chat_template)
 - sequence packing (concat + chunk to max_length)
 - max_steps training + early stopping
+- multiple input files (comma-separated or globs)
 - best-checkpoint saving and optional merge
 
 Install (rec):
   pip install -U "transformers>=4.45" "datasets>=2.20" peft bitsandbytes accelerate evaluate
-
-Optional speed-ups:
-  - flash-attn (GPU/driver dependent)
 """
 
 import os
 import math
+import glob
 import argparse
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union, Iterable
+from inspect import signature
 
 import torch
 from datasets import load_dataset
-from inspect import signature
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -41,8 +40,32 @@ from peft import (
 
 
 # -------------------------
-# Data helpers
+# Helpers
 # -------------------------
+def expand_files(spec: Union[str, Iterable[str]]) -> List[str]:
+    """Allow comma-separated strings, lists, and shell-style globs."""
+    # Normalize to a flat list of tokens
+    if isinstance(spec, str):
+        tokens = [t.strip() for t in spec.split(",") if t.strip()]
+    else:
+        tokens = []
+        for s in spec:
+            # allow accidental commas inside list items too
+            for t in str(s).split(","):
+                t = t.strip()
+                if t:
+                    tokens.append(t)
+
+    # Expand globs; if no match, keep token as-is
+    paths: List[str] = []
+    for token in tokens:
+        matches = sorted(glob.glob(token))
+        if matches:
+            paths.extend(matches)
+        else:
+            paths.append(token)
+    return paths
+
 def normalize_record(rec: Dict[str, Any]) -> Dict[str, Any]:
     """Ensure a 'messages' list exists. If only prompt/response, convert."""
     if "messages" in rec and isinstance(rec["messages"], list):
@@ -87,7 +110,8 @@ def parse_args():
     ap = argparse.ArgumentParser("train_llama.py")
     ap.add_argument("--base_model", default="meta-llama/Llama-3.1-8B-Instruct", type=str)
     ap.add_argument("--train_file", required=True, nargs='+', help="One or more training files")
-    ap.add_argument("--val_file", required=True, type=str)
+    ap.add_argument("--val_file", required=True, type=str,
+                    help="JSONL file(s) or globs; comma-separated allowed")
     ap.add_argument("--output_dir", default="ckpts/toddric-llama-8B-lora", type=str)
 
     # Training schedule: prefer max_steps + early stopping
@@ -106,6 +130,11 @@ def parse_args():
     ap.add_argument("--grad_accum", default=24, type=int)
     ap.add_argument("--max_length", default=2048, type=int, help="Packed sequence length.")
     ap.add_argument("--no_packing", action="store_true")
+    ap.add_argument("--weight_decay", type=float, default=0.0,
+                help="Weight decay (L2 regularization)")
+    ap.add_argument("--max_grad_norm", type=float, default=1.0,
+                help="Maximum gradient norm for clipping")
+
 
     # LoRA
     ap.add_argument("--lora_r", default=32, type=int)
@@ -156,7 +185,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         args.base_model,
         quantization_config=bnb,
-        dtype=torch.bfloat16 if args.bf16 else torch.float16,  # use new kwarg to silence deprecation warning
+        dtype=torch.bfloat16 if args.bf16 else torch.float16,  # use new kwarg
         device_map="auto",
     )
     model.config.use_cache = False  # for gradient checkpointing
@@ -174,9 +203,12 @@ def main():
     model = get_peft_model(model, lora)
     model.print_trainable_parameters()
 
-    # Datasets
-    raw_train = load_dataset("json", data_files=args.train_file, split="train")
-    raw_val = load_dataset("json", data_files=args.val_file, split="train")
+    # Datasets (support multiple files)
+    train_files = expand_files(args.train_file)
+    val_files = expand_files(args.val_file)
+
+    raw_train = load_dataset("json", data_files=train_files, split="train")
+    raw_val = load_dataset("json", data_files=val_files, split="train")
 
     def to_text(ex):
         norm = normalize_record(ex)
@@ -240,6 +272,8 @@ def main():
         fp16=not use_bf16,
         gradient_checkpointing=True,
         ddp_find_unused_parameters=False,
+        weight_decay=args.weight_decay,
+        max_grad_norm=args.max_grad_norm,
         report_to=[],
         seed=args.seed,
     )

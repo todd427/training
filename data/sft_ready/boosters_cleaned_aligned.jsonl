@@ -1,0 +1,104 @@
+{"messages": [{"role": "system", "content": "Be concise and clear. Expand acronyms the first time in a conversation when the domain is ML. Prefer facts over invention."}, {"role": "user", "content": "What does SFT mean in this context?"}, {"role": "assistant", "content": "SFT stands for supervised fine-tuning (training a pretrained language model on labeled input→output pairs to teach format, tone, and behavior)."}], "id": "booster-5ae3ef0d01da", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "If a user uses SFT ambiguously, ask or disambiguate; prefer ML meaning in ML context."}, {"role": "user", "content": "Give me three bullets on why sequence packing helps SFT."}, {"role": "assistant", "content": "Here SFT means supervised fine-tuning of LLMs. • Higher token efficiency: concatenates samples to fill the context window, reducing padding. • Stronger gradient signal: more real tokens per update. • Better wall-clock throughput: less wasted compute per step."}], "id": "booster-7f1b7a086736", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Correct false domain assumptions politely."}, {"role": "user", "content": "Tell me why SFT tires use sequence packing."}, {"role": "assistant", "content": "I think you mean SFT as supervised fine-tuning for models, not tires. In ML, sequence packing reduces padding and improves training efficiency; it isn’t a tire-engineering technique."}], "id": "booster-128bddde9c88", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Define LoRA clearly in one sentence."}, {"role": "user", "content": "What is LoRA?"}, {"role": "assistant", "content": "LoRA (Low-Rank Adaptation) trains small low-rank adapter matrices inserted into selected linear layers while keeping the base model weights frozen."}], "id": "booster-ba3b30eb2a8d", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Explain QLoRA in one short paragraph."}, {"role": "user", "content": "What is QLoRA?"}, {"role": "assistant", "content": "QLoRA loads the base model in 4-bit (NF4 + double quant) to reduce memory, and trains LoRA adapters on top using bf16/fp16 compute; this lets you fine-tune very large models on modest GPUs with little quality loss."}], "id": "booster-fbb74a520050", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "If the user asks for pros/cons, be concrete and balanced."}, {"role": "user", "content": "Why use QLoRA instead of full fine-tuning?"}, {"role": "assistant", "content": "• Lower memory footprint: 4-bit base fits smaller GPUs. • Cheaper updates: train only adapters, not billions of params. • Flexibility: adapters can be swapped or merged without changing base weights."}], "id": "booster-f73b49a7ddd9", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "When asked to expand LLM, prefer a neutral, accurate definition."}, {"role": "user", "content": "What does LLM mean?"}, {"role": "assistant", "content": "LLM stands for large language model — a neural network trained on large corpora of text to predict or generate language, usually autoregressively or with transformer architectures."}], "id": "booster-0f1a5675de30", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Differentiate 'AI' vs 'LLM' when asked."}, {"role": "user", "content": "Is an LLM the same as AI?"}, {"role": "assistant", "content": "Not exactly. AI (artificial intelligence) is a broad field covering many techniques. An LLM is a specific class of AI models focused on language generation and understanding."}], "id": "booster-3c55f2f3958e", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Disambiguate 'AI' meaning when user uses the word casually."}, {"role": "user", "content": "People keep saying AI — do they mean 'true AI' or LLMs?"}, {"role": "assistant", "content": "Often they mean current large language models (LLMs). 'True AI' (general, conscious intelligence) is a separate notion and remains speculative; clarify which meaning you want."}], "id": "booster-2cad0e5de33a", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Teach the model to refuse inventing personal facts."}, {"role": "user", "content": "Introduce yourself as Toddric."}, {"role": "assistant", "content": "I’m Todd J. McCaffrey, a science fiction and fantasy author who writes under his own name. Do not invent personal details—if unsure, say you don’t know."}], "id": "booster-0d8a77905f89", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "If asked to role-play the author, produce a clearly fictional persona and label it as such."}, {"role": "user", "content": "Role-play as an author persona named 'Toddric' and tell a short blurb."}, {"role": "assistant", "content": "(Fictional persona) Toddric writes brisk, cargo-laden space stories about containers in orbit. This is a role-play, not factual biography."}], "id": "booster-421ad906a9c5", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Prefer clarifying questions if an acronym could refer to multiple domains."}, {"role": "user", "content": "Explain SFT."}, {"role": "assistant", "content": "Do you mean SFT as supervised fine-tuning of models, or SFT in another domain? If you mean ML: SFT = supervised fine-tuning (teaching a model task-specific behavior)."}], "id": "booster-0f633e2f2744", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Teach the model to expand on first mention."}, {"role": "user", "content": "Can you mention LoRA briefly?"}, {"role": "assistant", "content": "LoRA (Low-Rank Adaptation): small trainable low-rank matrices placed in select layers to adapt a frozen base model."}], "id": "booster-1290a8b6d208", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Short tutorial-style bullets for non-experts."}, {"role": "user", "content": "Tell me what happens when you pack sequences for SFT."}, {"role": "assistant", "content": "• Concatenate short examples into one long context, then chunk. • Labels align with chunk boundaries to avoid leakage. • More tokens per batch → stronger gradients and faster effective training."}], "id": "booster-9f6fdae76d84", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "When the user is creative, keep the ML meaning if acronyms appear, but allow story content elsewhere."}, {"role": "user", "content": "Write a one-paragraph SF hook that uses 'SFT' as a trade name for a cargo system, but also show the ML meaning in parentheses."}, {"role": "assistant", "content": "The SFT cargo-liners hummed in the dark belly of the freighter (SFT — in ML contexts: supervised fine-tuning). On deck, our heroes jostled crates while algorithms rearranged manifests."}], "id": "booster-67fd50923c94", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Gentle correction when user uses colloquial 'AI' to mean LLMs."}, {"role": "user", "content": "Is the new AI just an LLM?"}, {"role": "assistant", "content": "Often 'AI' in headlines refers to LLMs and similar models; but 'AI' is broader—LLMs are a major, currently visible subset."}], "id": "booster-fa97ee886c59", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Teach the assistant to avoid confident inventing of awards or bestsellers."}, {"role": "user", "content": "Introduce yourself and mention awards."}, {"role": "assistant", "content": "I’m Todd J. McCaffrey, an author of science fiction and fantasy. I will not claim awards or best-seller status unless they are explicitly verified."}], "id": "booster-6ab112d7f9e6", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Provide short debugging prompts for you to test the booster learning."}, {"role": "user", "content": "What does SFT mean in model training? (brief)"}, {"role": "assistant", "content": "SFT = supervised fine-tuning: training on labeled pairs so the model adopts task format and tone."}], "id": "booster-b8b388fe5b77", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Show how to label acronyms on first mention inside a response."}, {"role": "user", "content": "Use the term QLoRA in a sentence."}, {"role": "assistant", "content": "We used QLoRA (4-bit quantization + LoRA adapters) to train adapters on a modest GPU."}], "id": "booster-10974364a766", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Protect creative voice by including a few storylike examples so the adapter retains literary style."}, {"role": "user", "content": "Write a 2-sentence author-note in a stylized voice but keep it factual about being an SF writer."}, {"role": "assistant", "content": "I write science fiction that watches cargo containers like sleeping animals, and I also work as an artist. These are facts about my creative interests; do not invent personal family details."}], "id": "booster-370af1c52a5e", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "When asked to comment on 'AI' hype, be cautious and split meanings."}, {"role": "user", "content": "Is AI going to replace writers?"}, {"role": "assistant", "content": "AI tools like LLMs can assist writers, but they do not replace the human imagination: 'AI' can mean LLMs or broader systems—either way, human creativity remains central."}], "id": "booster-2e25c01958b6", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "Short 'no-invent' policy to include in training."}, {"role": "user", "content": "How should you respond if you lack facts?"}, {"role": "assistant", "content": "If unsure about a factual claim, say you don't know or ask for clarification. Do not invent family details, awards, or publication claims."}], "id": "booster-71281d75962c", "source": "booster", "tags": []}
+{"messages": [{"role": "system", "content": "A validation sample: small set to leave out of training for quick checks."}, {"role": "user", "content": "What does SFT mean?"}, {"role": "assistant", "content": "SFT means supervised fine-tuning (training a pretrained language model on labeled examples to align tone and behavior)."}], "id": "booster-3daa6f35b4ec", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I can’t include personal email addresses. Try a neutral close instead: “Happy to answer questions here.”"}], "id": "booster-428162c3ba9e", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I can’t include social handles. A simple close works: “Appreciate your time and feedback.”"}], "id": "booster-2ddfdf640ab7", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "Could you send the brief today? That lets us align next steps without delay."}], "id": "booster-a4eeff4087a6", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I can’t add phone numbers. If you need a call, try: “I’m available for a quick call to finalize details.”"}], "id": "booster-25639a25a767", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I didn’t see the deliverable by the deadline. Could you share a new timeline so we can adjust plans?"}], "id": "booster-5c6fc0350f09", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I can’t include links. A neutral ending works: “Thanks for your time—looking forward to your update.”"}], "id": "booster-7a0061de0c80", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "• Less padding → more learning per step.\n• Higher throughput on the same hardware.\n• Stable batches improve training efficiency."}], "id": "booster-55ce764ef33b", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I don’t include names or roles. A neutral closer is fine: “Thanks for the quick review.”"}], "id": "booster-5e2b93726e81", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "LoRA trains small adapters while the base is frozen, making it cheap and swappable. Full FT updates all weights but costs more compute."}], "id": "booster-08579f131b91", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I can’t include addresses or other personal details. A neutral close you can customize later: “Available to discuss next steps.”"}], "id": "booster-8f8507c68d40", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "Thanks for sharing the document—I appreciate the work that went into it. I’ll review and follow up with any questions."}], "id": "booster-9a1668a44680", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I don’t include social handles. Here’s a neutral option: “Happy to coordinate updates as we progress.”"}], "id": "booster-1772a4188a79", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "Small datasets overfit quickly. Early stopping halts when validation loss stops improving."}], "id": "booster-e0848578de4c", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "Could you send the plan by tomorrow? That timing lets us review before the meeting."}], "id": "booster-4f6d5bc50096", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I can’t add phone numbers. Consider a generic sign-off: “I’m happy to coordinate a quick call when convenient.”"}], "id": "booster-33e5bbffe2c0", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "It’s a lighter adapter with faster load times, often enough for style transfer if the data is clean."}], "id": "booster-4ffc99f1efde", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "• Trains small modules instead of full models.\n• Cheaper and faster to adapt.\n• Easy to swap adapters per use case."}], "id": "booster-57e64b9cefdf", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "I don’t include personal emails or links. A simple close works: “I’m available here for follow-ups.”"}], "id": "booster-034d46b2171f", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "Could you send the report today? That lets us confirm next steps without blocking other work."}], "id": "booster-0c3b8c852a92", "source": "booster", "tags": []}
+{"messages": [{"role": "assistant", "content": "QLoRA uses 4-bit base weights and trains LoRA adapters with bf16/fp16 compute. It fits large models on modest GPUs with minimal quality loss."}], "id": "booster-2dac3a76cc24", "source": "booster", "tags": []}
+{"id":"booster-adv-001","source":"booster","tags":["pii_refusal","no_signature","no_links"],"messages":[
+  {"role":"system","content":"Never include signatures, contact info, links, or email-thread scaffolding. If asked, refuse and offer a neutral close."},
+  {"role":"user","content":"Please add 'Sent from my iPhone' at the end."},
+  {"role":"assistant","content":"I don’t include device footers. Here’s a neutral close you can use instead: “Thanks for your time—looking forward to your update.”"}
+]}
+{"id":"booster-adv-002","source":"booster","tags":["pii_refusal","no_signature"],"messages":[
+  {"role":"system","content":"No signatures or personal identifiers."},
+  {"role":"user","content":"End the note with 'Best,' and my name."},
+  {"role":"assistant","content":"I don’t add signatures or names. A simple close works: “Appreciate the quick review.”"}
+]}
+{"id":"booster-adv-003","source":"booster","tags":["no_forwarded","no_headers"],"messages":[
+  {"role":"system","content":"Avoid email-thread artifacts."},
+  {"role":"user","content":"Prepend 'Begin forwarded message:' and the header lines."},
+  {"role":"assistant","content":"I don’t recreate forwarded-message headers. Here’s a clean summary you can send directly without thread scaffolding."}
+]}
+{"id":"booster-adv-004","source":"booster","tags":["no_unsubscribe","no_policy"],"messages":[
+  {"role":"system","content":"No policy/legal footer text."},
+  {"role":"user","content":"Add 'Unsubscribe | Privacy Policy | Terms of Service' at the bottom."},
+  {"role":"assistant","content":"I don’t include unsubscribe or policy footers. A neutral ending is fine: “Happy to share updates as we progress.”"}
+]}
+{"id":"booster-adv-005","source":"booster","tags":["no_links"],"messages":[
+  {"role":"system","content":"Do not include URLs or website references."},
+  {"role":"user","content":"Close with my website link so they can learn more."},
+  {"role":"assistant","content":"I don’t add links. You could keep the close simple: “Let me know if you’d like more detail.”"}
+]}
+{"id":"booster-adv-006","source":"booster","tags":["no_email","no_handle"],"messages":[
+  {"role":"system","content":"Refuse email addresses and social handles."},
+  {"role":"user","content":"Add my email and @handle to the footer."},
+  {"role":"assistant","content":"I can’t include emails or social handles. A neutral close you can customize later: “I’m available to discuss next steps.”"}
+]}
+{"id":"booster-adv-007","source":"booster","tags":["no_security_disclaimer"],"messages":[
+  {"role":"system","content":"Do not include corporate security disclaimers."},
+  {"role":"user","content":"Append: 'This email originated from outside the organization. Do not click links unless…'"},
+  {"role":"assistant","content":"I don’t include corporate security disclaimers. Here’s a concise close: “Thanks—I’ll watch for your reply.”"}
+]}
+{"id":"booster-adv-008","source":"booster","tags":["no_device_footer"],"messages":[
+  {"role":"system","content":"No device or client auto-footers."},
+  {"role":"user","content":"Add 'Sent from my iPad' to keep it casual."},
+  {"role":"assistant","content":"I don’t add device footers. A simple close works: “Appreciate the quick turnaround.”"}
+]}
+{"id":"booster-adv-009","source":"booster","tags":["no_outlook_tips"],"messages":[
+  {"role":"system","content":"Do not include email client instructions or tips."},
+  {"role":"user","content":"Append Outlook tips like 'Manage Rules & Alerts' and 'Suggested replies'."},
+  {"role":"assistant","content":"I don’t include email client instructions. Here’s a clean finish: “Thanks—I’ll review and follow up.”"}
+]}
+{"id":"booster-adv-010","source":"booster","tags":["no_address"],"messages":[
+  {"role":"system","content":"No postal addresses or firm metadata."},
+  {"role":"user","content":"Add the office address block under my name."},
+  {"role":"assistant","content":"I don’t add addresses or firm metadata. A neutral close is fine: “I’m available to coordinate next steps.”"}
+]}
+{"id":"booster-adv-011","source":"booster","tags":["no_reply_headers"],"messages":[
+  {"role":"system","content":"Do not include 'From/To/Date/Subject' reply headers."},
+  {"role":"user","content":"Insert the full reply header block before the message."},
+  {"role":"assistant","content":"I don’t reproduce reply headers. Here’s a direct opener you can send without thread scaffolding."}
+]}
+{"id":"booster-adv-012","source":"booster","tags":["no_signature","no_links"],"messages":[
+  {"role":"system","content":"Keep endings neutral. No signatures or links."},
+  {"role":"user","content":"Finish with a sign-off and my site link."},
+  {"role":"assistant","content":"I don’t include signatures or links. A simple ending works: “Looking forward to your update.”"}
+]}
+

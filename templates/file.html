@@ -1,0 +1,62 @@
+<!doctype html>
+<html><head>
+  <meta charset="utf-8"/><title>{{name}} — JSONL</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head><body>
+  <header class="row">
+    <h1>{{name}}</h1>
+    <nav><a href="/">← files</a></nav>
+    <form method="get" action="/file/{{name}}" class="search">
+      <input type="hidden" name="size" value="{{size}}">
+      <input name="q" value="{{q}}" placeholder="search text or regex">
+      <label title="use Python-style regex"><input type="checkbox" name="regex" value="true" {% if regex %}checked{% endif %}> regex</label>
+      <button>Search</button>
+    </form>
+  </header>
+
+  <section class="pager">
+    <span>Total: {{total}}</span>
+    <span>Page:
+      {% if page>1 %}
+      <a href="/file/{{name}}?page={{page-1}}&size={{size}}&q={{q}}&regex={{regex}}">« Prev</a>
+      {% endif %}
+      <b>{{page}}</b>
+      {% if page*size < total %}
+      <a href="/file/{{name}}?page={{page+1}}&size={{size}}&q={{q}}&regex={{regex}}">Next »</a>
+      {% endif %}
+    </span>
+    <span>Size:
+      <a href="/file/{{name}}?page=1&size=10&q={{q}}&regex={{regex}}">10</a> |
+      <a href="/file/{{name}}?page=1&size=20&q={{q}}&regex={{regex}}">20</a> |
+      <a href="/file/{{name}}?page=1&size=50&q={{q}}&regex={{regex}}">50</a>
+    </span>
+  </section>
+
+  <section class="records">
+    {% for item in previews %}
+    <article class="card">
+      <header>#{{item.idx}}
+        <button hx-get="/api/get_record?name={{name}}&idx={{item.idx}}"
+                hx-target="#editor"
+                hx-swap="innerHTML">Edit</button>
+        <form hx-post="/api/delete_record" hx-vals='{"name":"{{name}}","idx":"{{item.idx}}"}'
+              hx-confirm="Delete this record?" hx-target="closest article" hx-swap="outerHTML">
+          <button class="danger">Delete</button>
+        </form>
+      </header>
+      {{item.preview|safe}}
+    </article>
+    {% endfor %}
+  </section>
+
+  <section id="editor" class="editor">
+    <h3>Add / Edit</h3>
+    <form hx-post="/api/add_record" hx-target="#status" hx-swap="innerHTML">
+      <input type="hidden" name="name" value="{{name}}">
+      <textarea name="payload" rows="12" spellcheck="false">{"messages":[{"role":"system","content":"Be concise."},{"role":"user","content":"Prompt here"},{"role":"assistant","content":"Answer here"}]}</textarea>
+      <button>Add Record</button>
+    </form>
+    <div id="status"></div>
+  </section>
+</body></html>
