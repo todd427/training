@@ -1,7 +1,7 @@
 scripts.old
 logs/
 data.old/
-eval
+eval/run*
 chatgpt/chatgpt.zip
 eval_results.csv
 venv312
